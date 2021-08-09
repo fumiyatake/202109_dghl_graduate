@@ -8,6 +8,7 @@ final int BAUD_RATE = 9600;
 
 HashMap<String,Serial> serialMap;
 boolean active;
+String[] portList;
 
 OscP5 osc;
 
@@ -21,6 +22,7 @@ void setup(){
   serialMap = new HashMap<String,Serial>();
   
   osc = new OscP5( this, SELF_PORT );
+  portList = Serial.list();
 }
 
 void oscEvent( OscMessage msg ){
@@ -32,6 +34,7 @@ void oscEvent( OscMessage msg ){
     case "/serial/write":
       // コネクションがない場合は作ったうえで書き込み
       Serial serial = connectSerialDevice( msg.get(0).stringValue() );
+      if( Objects.isNull( serial ) ) return;
       serial.write( msg.get(1).stringValue() );
       break;
     default:
@@ -51,6 +54,10 @@ Serial connectSerialDevice( String portName ){
     Serial serial = serialMap.get( portName );
     if( serial.active() ) return serial;
   }
+  
+  // 存在しない場合はnullで返す
+  if( !existsPort( portName ) ) return null;
+  
   try{
     Serial serial = new Serial( this, portName, BAUD_RATE );
     serialMap.put( portName, serial );
@@ -59,4 +66,17 @@ Serial connectSerialDevice( String portName ){
     println( "fail to connect port :: " + portName );
   }
   return null;
+}
+
+/**
+ * 指定のポート名が検知されているか判定します
+ * ※高速化のため、アプリケーションの開始時に検知されているデバイスが対象
+ * @param String targetPort
+ * @return boolean 存在する場合true
+ */
+boolean existsPort( String targetPort ){
+  for( String portName : portList ){
+    if( portName.equals( targetPort ) ) return true;
+  }
+  return false;
 }
