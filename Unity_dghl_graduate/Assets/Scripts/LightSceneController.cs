@@ -29,6 +29,11 @@ public class LightSceneController : MonoBehaviour
     private float _targetPower = 0f;
     private GameObject[] _lightList;
 
+    private float _hue = 0f;
+    private float _saturation = 0f;
+    private Gradient _vfxGradient;
+    private Vector3 _center;
+
     void Start()
     {
         // OSC イベントの受付設定
@@ -37,6 +42,13 @@ public class LightSceneController : MonoBehaviour
 
         // ライトの設定
         lightParam[] lightParamList = new lightParam[]{
+            new lightParam( "/COM9", oscLocal ),
+            new lightParam( "/COM9", oscLocal ),
+            new lightParam( "/COM9", oscLocal ),
+            new lightParam( "/COM9", oscLocal ),
+            new lightParam( "/COM9", oscLocal ),
+            new lightParam( "/COM9", oscLocal ),
+            new lightParam( "/COM9", oscLocal ),
             new lightParam( "/COM9", oscLocal ),
         };
         _lightList = new GameObject[lightParamList.Length];
@@ -58,13 +70,38 @@ public class LightSceneController : MonoBehaviour
             controller.isVisible = IS_LIGHT_VISIBLE;
         }
 
+        // TODO 削除
+        _hue = Random.Range( 0f, 1f );
+        _saturation = Random.Range(0.8f, 1f);
+        _setVfxGradient();
+
+        _center = new Vector3( 2f, 0f, -1f );
     }
 
     // Update is called once per frame
     void Update()
     {
+        // TODO 削除
+        _hue += Random.Range(-0.01f, 0.01f);
+        _saturation += Random.Range(-0.01f, 0.01f);
+
+        VisualEffect vfx = heartBeatVFX.GetComponent<VisualEffect>();
         _lifePower = _lifePower + (_targetPower - _lifePower) * 0.1f;
-        heartBeatVFX.GetComponent<VisualEffect>().SetFloat("LifePower", _lifePower);
+        vfx.SetFloat("LifePower", _lifePower);    // TODO 本当は文字列ベースで当たらない方がパフォーマンスいいらしい
+        vfx.SetVector3("Center", _center);    
+
+        // 色を変更
+        _setVfxGradient();
+
+
+        for (int i = 0; i < _lightList.Length; i++)
+        {
+            Vector3 position = _lightList[i].transform.position;
+            float distance = Vector3.Distance(_center, position );
+            Debug.Log(radius * _lifePower / distance);
+            Debug.Log(radius * _lifePower / distance);
+            _lightList[i].GetComponent<LightController>().setColor(Color.HSVToRGB(_hue, radius * _lifePower / distance, radius * _lifePower / distance));
+        }
     }
 
     void OnReceiveHeartbeat( OscMessage msg )
@@ -80,6 +117,17 @@ public class LightSceneController : MonoBehaviour
     void OnReceiveBodyTrackingt( OscMessage msg )
     {
         Debug.Log(msg.values[0]);
+    }
+
+    private void _setVfxGradient()
+    {
+        // vfxのグラデーションを設定
+        Color color = Color.HSVToRGB(_hue, _saturation, 1);
+        GradientColorKey[] colorKeys = new GradientColorKey[] { new GradientColorKey(new Color(0, 0, 0), 0f), new GradientColorKey(color, 1f) };
+        GradientAlphaKey[] alphaKeys = new GradientAlphaKey[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 1f) };
+        _vfxGradient = new Gradient();
+        _vfxGradient.SetKeys(colorKeys, alphaKeys);
+        heartBeatVFX.GetComponent<VisualEffect>().SetGradient("LifeGradient", _vfxGradient);
     }
 
     private static float _map(float value, float fromLow, float fromHigh, float toLow, float toHigh)
