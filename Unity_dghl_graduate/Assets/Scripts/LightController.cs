@@ -12,6 +12,7 @@ public class LightController : MonoBehaviour
     /** @var OSC osc OSC通信用のゲームオブジェクト*/
     public OSC osc;
     public string serialPort;
+    public bool isVisible = false;
 
     private Material _mat;
     public Color _color;
@@ -25,6 +26,9 @@ public class LightController : MonoBehaviour
         this._mat.color = this._color;
         this.transform.Find("LightEntity").GetComponent<Renderer>().material = _mat;
 
+        this.transform.Find("LightEntity").gameObject.SetActive(isVisible);
+
+
         // シリアル通信を確立
         OscMessage message = new OscMessage();
         message.address = OSC_ADDRESS_CONNECT;
@@ -34,7 +38,8 @@ public class LightController : MonoBehaviour
 
     // Update is called once per frame
     void Update()
-    {   
+    {
+        this.transform.Find("LightEntity").gameObject.SetActive(isVisible);
         this._color.r += Random.Range(-0.01f, 0.01f);
         this._color.g += Random.Range(-0.01f, 0.01f);
         this._color.b += Random.Range(-0.01f, 0.01f);
