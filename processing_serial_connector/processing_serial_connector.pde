@@ -4,13 +4,20 @@ import netP5.*;
 import oscP5.*;
 
 final int SELF_PORT = 10001;
+final int UNITY_PORT = 11001;
 final int BAUD_RATE = 9600;
 
+final String HEARTBEAT_SERIAL_PORT = "/COM5";
+
+final String HEARTBEAT_OSC_ADDRESS = "/heartbeat";
+
 HashMap<String,Serial> serialMap;
+Serial heartBeatSerial;
 boolean active;
 String[] portList;
 
 OscP5 osc;
+NetAddress unityAddress;
 
 void setup(){
   frameRate( 60 );
@@ -22,7 +29,24 @@ void setup(){
   serialMap = new HashMap<String,Serial>();
   
   osc = new OscP5( this, SELF_PORT );
+  unityAddress = new NetAddress( "localhost", UNITY_PORT );
   portList = Serial.list();
+  
+  heartBeatSerial = new Serial( this, HEARTBEAT_SERIAL_PORT, BAUD_RATE);
+}
+
+void draw(){
+  // 心拍センサの値取得と送信のみ
+  
+  if( !heartBeatSerial.active() ) return;
+  String val = heartBeatSerial.readStringUntil('\n');
+  if( Objects.isNull( val ) ) return;
+  val = trim( val );
+  println( val );
+  
+  OscMessage msg = new OscMessage( HEARTBEAT_OSC_ADDRESS );
+  msg.add( val );
+  osc.send( msg, unityAddress );
 }
 
 void oscEvent( OscMessage msg ){
