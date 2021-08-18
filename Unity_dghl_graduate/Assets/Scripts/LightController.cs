@@ -21,7 +21,7 @@ public class LightController : MonoBehaviour
     {
         this._mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
  // TODO 0,0,0‚É•Ï‚¦‚é
-        this._color = new Color( Random.Range(0f,.1f), Random.Range(0f, .1f), Random.Range(0f, .1f));
+        this._color = new Color( Random.Range(0.9f,1f), Random.Range(0f, 1f), Random.Range(0f, 1f));
         this._mat.color = this._color;
         this.transform.Find("LightEntity").GetComponent<Renderer>().material = _mat;
 
@@ -56,7 +56,6 @@ public class LightController : MonoBehaviour
             (this._color.g * 255).ToString(),
             (this._color.b * 255).ToString()
         ) );
-        Debug.Log(message.values[1]);
         osc.Send( message );
     }
  
