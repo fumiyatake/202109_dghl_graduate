@@ -17,22 +17,31 @@ struct lightParam
 
 public class LightSceneController : MonoBehaviour
 {
-    const bool IS_LIGHT_VISIBLE = true;
+    const float FUSION_STEP = 0.0002f;
+
+    public bool IS_LIGHT_VISIBLE = false;
 
     public OSC oscLocal;
     public OSC oscRemote;
     public GameObject heartBeatVFX;
     public GameObject LightPrefab;
+    public GameObject NoiseAudio;
+    public GameObject HeartAudio;
+    public GameObject FireAudio;
     public int radius = 5;
 
-    private float _lifePower = 0f;
-    private float _targetPower = 0f;
+    private bool _isFusionStart = false;
+    private float _beatRate = 0f;
+    private float _fusionRate = 0f;
     private GameObject[] _lightList;
 
-    private float _hue = 0f;
-    private float _saturation = 0f;
+    private Color _color = new Color();
     private Gradient _vfxGradient;
     private Vector3 _center;
+
+    private AudioSource _noiseAudioComp;
+    private AudioSource _heartAudioComp;
+    private AudioSource _fireAudioComp;
 
     void Start()
     {
@@ -40,16 +49,15 @@ public class LightSceneController : MonoBehaviour
         oscLocal.SetAddressHandler( "/heartbeat", OnReceiveHeartbeat);
         oscLocal.SetAddressHandler( "/body_tracking", OnReceiveBodyTrackingt);
 
-        // ライトの設定
+        // ライトの設定(正面やや左から反時計回りに配置)
+        // windowsのbluetooth不安定なので全部リモートのmacにやらせる
         lightParam[] lightParamList = new lightParam[]{
-            new lightParam( "/COM9", oscLocal ),
-            new lightParam( "/COM9", oscLocal ),
-            new lightParam( "/COM9", oscLocal ),
-            new lightParam( "/COM9", oscLocal ),
-            new lightParam( "/COM9", oscLocal ),
-            new lightParam( "/COM9", oscLocal ),
-            new lightParam( "/COM9", oscLocal ),
-            new lightParam( "/COM9", oscLocal ),
+            new lightParam( "/dev/tty.ESP32-ESP32SPP", oscRemote ),
+            new lightParam( "/dev/tty.ESP32-2-ESP32SPP", oscRemote ),
+            new lightParam( "/dev/tty.ESP32-4-ESP32SPP", oscRemote ),
+            new lightParam( "/dev/tty.ESP32-5-ESP32SPP", oscRemote ),
+            new lightParam( "/dev/tty.ESP32-9-ESP32SPP", oscRemote ),
+            new lightParam( "/dev/tty.ESP32-8-ESP32SPP", oscRemote ),
         };
         _lightList = new GameObject[lightParamList.Length];
 
@@ -58,7 +66,7 @@ public class LightSceneController : MonoBehaviour
             lightParam param    = lightParamList[i];
             
             // 数に応じて自動で円状に等間隔に配置
-            // 正面にKinectを置いたときに邪魔にならないように、正面やや左から反時計回りに配置
+            // 正面が邪魔にならないように、正面やや左から反時計回りに配置
             float radian        = Mathf.Deg2Rad * ( 360 / lightParamList.Length * ( i + 0.5f ) + 90 );
             Vector3 position    = new Vector3(Mathf.Cos(radian) * radius, 0, Mathf.Sin(radian) * radius);
             GameObject light    = Instantiate(LightPrefab, position, Quaternion.identity,gameObject.transform);
@@ -70,48 +78,89 @@ public class LightSceneController : MonoBehaviour
             controller.isVisible = IS_LIGHT_VISIBLE;
         }
 
-        // TODO 削除
-        _hue = Random.Range( 0f, 1f );
-        _saturation = Random.Range(0.8f, 1f);
+        // vfxの色をセット
         _setVfxGradient();
 
-        _center = new Vector3( 2f, 0f, -1f );
+        // 中央を設定（現状では固定）
+        _center = new Vector3( 0f, 0f, 0f );
+
+        // 音源のコンポーネントを取得
+        _noiseAudioComp = NoiseAudio.GetComponent<AudioSource>();
+        _heartAudioComp = HeartAudio.GetComponent<AudioSource>();
+        _fireAudioComp  = FireAudio.GetComponent<AudioSource>();
+        _heartAudioComp.Stop();
+        _heartAudioComp.timeSamples = 0;
     }
 
     // Update is called once per frame
     void Update()
     {
-        // TODO 削除
-        _hue += Random.Range(-0.01f, 0.01f);
-        _saturation += Random.Range(-0.01f, 0.01f);
+        // 人が離れた時
+        if ( _isFusionStart && _beatRate <= 0f )
+        {
+            _isFusionStart = false;
+            _fusionRate = 0f;
+            _heartAudioComp.Stop();
+            _heartAudioComp.timeSamples = 0;
+            _fireAudioComp.timeSamples = 0;
+            _fireAudioComp.Play();
+        }
+        // 人が来た時
+        else if ( !_isFusionStart && _beatRate > 0f )
+        {
+            _isFusionStart  = true;
+            _fusionRate     = FUSION_STEP;
+            _heartAudioComp.Play();
+        }
+        // 継続しているとき
+        else if (_isFusionStart && _fusionRate < 1f)
+        {
+            _fusionRate += FUSION_STEP;
+        }
 
-        VisualEffect vfx = heartBeatVFX.GetComponent<VisualEffect>();
-        _lifePower = _lifePower + (_targetPower - _lifePower) * 0.1f;
-        vfx.SetFloat("LifePower", _lifePower);    // TODO 本当は文字列ベースで当たらない方がパフォーマンスいいらしい
-        vfx.SetVector3("Center", _center);    
+        // 音周りの調整
+        _heartAudioComp.volume  = 0.2f + _fusionRate * 2;
+        _noiseAudioComp.volume  = 0.15f + ( _isFusionStart ? (1 - _fusionRate) * 0.4f : 0f );
+
+        // 色周りの調整
+        float noiseValG = Mathf.PerlinNoise(Time.time * 0.001f, Time.frameCount * 0.001f);
+        float noiseValB = Mathf.PerlinNoise(Time.frameCount * 0.001f, Time.time * 0.001f);
+        float r = _isFusionStart ? Mathf.Cos(Mathf.Deg2Rad * 90 * _fusionRate) : 0f;
+        float g = ( _isFusionStart ? 1f - Mathf.Cos(Mathf.Deg2Rad * 90 * _fusionRate) : 1f ) * noiseValG;
+        float b = ( _isFusionStart ? 1f - Mathf.Cos(Mathf.Deg2Rad * 90 * _fusionRate) : 1f) * noiseValB;
+        _color = new Color(r, g, b, 1f);
 
         // 色を変更
         _setVfxGradient();
 
-
+        float brightRate = _fusionRate * 0.8f + 0.2f;
         for (int i = 0; i < _lightList.Length; i++)
         {
             Vector3 position = _lightList[i].transform.position;
             float distance = Vector3.Distance(_center, position );
-            Debug.Log(radius * _lifePower / distance);
-            Debug.Log(radius * _lifePower / distance);
-            _lightList[i].GetComponent<LightController>().setColor(Color.HSVToRGB(_hue, radius * _lifePower / distance, radius * _lifePower / distance));
+            float colorRate = 1f;
+            if( _isFusionStart && _fusionRate < 1f)
+            {
+                if( Random.Range( 0f, 1f ) > ( 0.5f + 0.5f * _fusionRate ) )
+                {
+                    colorRate = 0f;
+                }
+            }
+            _lightList[i].GetComponent<LightController>().setColor( _color * colorRate );
         }
+
+        // vfxに反映
+        VisualEffect vfx = heartBeatVFX.GetComponent<VisualEffect>();
+        vfx.SetFloat("FusionRate", _fusionRate);    // TODO 本当は文字列ベースで当たらない方がパフォーマンスいいらしい
+        vfx.SetVector3("Center", _center);
+        vfx.SetFloat("BeatRate", _beatRate);
+
     }
 
     void OnReceiveHeartbeat( OscMessage msg )
     {
-        float val = float.Parse( msg.values[0].ToString() );
-        float lifePower = _map(val, 2800f, 3200f, 0f, 1f);
-        if (lifePower < 0f ) lifePower = 0f;
-        if (lifePower > 1f ) lifePower = 1f;
-        lifePower = Mathf.Sin(lifePower * Mathf.PI / 2f);
-        _targetPower = lifePower;
+        _beatRate = float.Parse( msg.values[0].ToString() );
+        _heartAudioComp.pitch = 1f / _beatRate * 0.95f;
     }
 
     void OnReceiveBodyTrackingt( OscMessage msg )
@@ -122,9 +171,8 @@ public class LightSceneController : MonoBehaviour
     private void _setVfxGradient()
     {
         // vfxのグラデーションを設定
-        Color color = Color.HSVToRGB(_hue, _saturation, 1);
-        GradientColorKey[] colorKeys = new GradientColorKey[] { new GradientColorKey(new Color(0, 0, 0), 0f), new GradientColorKey(color, 1f) };
-        GradientAlphaKey[] alphaKeys = new GradientAlphaKey[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 1f) };
+        GradientColorKey[] colorKeys = new GradientColorKey[] { new GradientColorKey(new Color(1f, 1f, 1f), 0f), new GradientColorKey(_color, 1f) };
+        GradientAlphaKey[] alphaKeys = new GradientAlphaKey[] { new GradientAlphaKey(0.9f, 0.9f), new GradientAlphaKey(1f, 1f) };
         _vfxGradient = new Gradient();
         _vfxGradient.SetKeys(colorKeys, alphaKeys);
         heartBeatVFX.GetComponent<VisualEffect>().SetGradient("LifeGradient", _vfxGradient);

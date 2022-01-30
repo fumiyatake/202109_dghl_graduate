@@ -20,7 +20,6 @@ String incomingByte = ""; // for incoming serial data
 void setup() {
   Serial.begin(9600);
   SerialBT.begin("ESP32");
-//  SerialBT.begin("ESP32-3");
 
   pinMode( LED_R_PIN, OUTPUT );
   pinMode( LED_G_PIN, OUTPUT );

@@ -45,18 +45,19 @@ public class LightController : MonoBehaviour
         OscMessage message  = new OscMessage();
         message.address     = OSC_ADDRESS_WRITE;
         message.values.Add( this.serialPort );
-        message.values.Add( string.Format(
-            "{{ r:{0:0.00}, g:{1:0.00}, b:{2:0.00} }};",
+        message.values.Add(string.Format(
+          "{{ r:{0:0.00}, g:{1:0.00}, b:{2:0.00} }};",
             (this._color.r * 255).ToString(),
             (this._color.g * 255).ToString(),
             (this._color.b * 255).ToString()
-        ) );
-        osc.Send( message );
+        ));
+        osc.Send(message);
+
     }
- 
+
     public void setColor( Color color )
     {
+        // TODO ‚±‚Ì‚Ü‚Ü‚¾‚Æ‚¿‚©‚¿‚©‚µ‚·‚¬‚é‚Ì‚ÅA‚à‚¤­‚µŠŠ‚ç‚©‚É•Ï‰»‚·‚é‚æ‚¤‚É‚·‚é(’¼ÚColor‚ğó‚¯æ‚ç‚È‚¢•û‚ª‚¢‚¢‚©‚à)
         this._color = new Color( color.r, color.g, color.b );
-        
     }
 }
